@@ -6,7 +6,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-
+#include <math.h>
 
 NOCTAR_EXPORT int noctar_open(noctar_t** dev, const char* path) {
     // Check arguments
@@ -51,13 +51,35 @@ NOCTAR_EXPORT int noctar_set_path(noctar_t* dev, noctar_direction_t dir, noctar_
     return NOCTAR_SUCCESS;
 }
 
-NOCTAR_EXPORT int noctar_set_hf_gain(noctar_t* dev, noctar_direction_t dir, uint8_t gain) {
+NOCTAR_EXPORT int noctar_set_hf_gain(noctar_t* dev, noctar_direction_t dir, float gain) {
+    // Check if gain is valid
+    if (gain < NOCTAR_MIN_HF_GAIN || gain > NOCTAR_MAX_HF_GAIN) {
+        return NOCTAR_ERROR_INVALID_ARGUMENT;
+    }
+    
+    // Calculate binary value
+    uint8_t attVal = roundf(gain * 255.0f / 30.0f);
+
+    // Apply setting
     if (dir & NOCTAR_DIR_RX) {
-        int err = noctar_set_pin(dev, IOCTL_SET_N21at0, gain);
+        int err = noctar_set_pin(dev, IOCTL_SET_N21at0, attVal);
         if (err) { return err; }
     }
     if (dir & NOCTAR_DIR_TX) {
-        int err = noctar_set_pin(dev, IOCTL_SET_N22at0, gain);
+        int err = noctar_set_pin(dev, IOCTL_SET_N22at0, attVal);
+        if (err) { return err; }
+    }
+    return NOCTAR_SUCCESS;
+}
+
+NOCTAR_EXPORT int noctar_set_rx_hf_vga_gain(noctar_t* dev, noctar_adc_t adc, float gain) {
+    // The gain values are checked in the lmh6521 functions so no need to check here
+    if (adc & NOCTAR_ADC_A) {
+        int err = noctar_lmh6521_set_gain(dev, NOCTAR_LMH6521_CHAN_A_ADDR, gain);
+        if (err) { return err; }
+    }
+    if (adc & NOCTAR_ADC_B) {
+        int err = noctar_lmh6521_set_gain(dev, NOCTAR_LMH6521_CHAN_B_ADDR, gain);
         if (err) { return err; }
     }
     return NOCTAR_SUCCESS;
